@@ -6,6 +6,7 @@ setup(
   py_modules=['main'],
   install_requires=[
       'Click',
+      'junitparser'
   ],
   entry_points={
     'console_scripts': [
