@@ -1,28 +1,21 @@
 import os
 
-from xml.etree import ElementTree as ET
+from junitparser import JUnitXml
+
 
 import click
 
 
-def filter_reports_with_errors_or_failures(reports):
+def check_if_errors_or_failures(xml):
 
-    result = dict()
+    for test_suite in xml:
+        if test_suite.errors or test_suite.failures:
+            return True
 
-    for report_path in reports.keys():
-        attributes_list = list()
-        for test_suite_attributes in reports[report_path]:
-            if int(test_suite_attributes['errors']) or int(test_suite_attributes['failures']):
-                attributes_list.append(test_suite_attributes)
-
-        if attributes_list:
-            result[report_path] = attributes_list
-
-    return result
+    return False
 
 
 def _check_file_exists_and_is_readable(directory_entry):
-    #return os.access(path, os.F_OK | os.R_OK)
     return directory_entry.is_file()
 
 
@@ -35,25 +28,17 @@ def _echo_dir_entry_paths(dir_entries):
         click.echo(dir_entry.path)
 
 
-def analyze_test_reports(test_report_entries):
+def get_single_xml(test_report_entries):
 
-    results = dict()
+    xml = JUnitXml()
 
     for test_report_entry in test_report_entries:
-        if not _check_file_exists_and_is_readable(test_report_entry):
+        if not test_report_entry.is_file():
             raise(ValueError(f"test report located at {test_report_entry.path} is not accessible"))
 
-        element_tree = ET.parse(test_report_entry.path)
+        xml += JUnitXml.fromfile(test_report_entry.path)
 
-        if not _check_element_tree_has_expected_format(element_tree):
-            raise(ValueError(f"Unsupported format found for {test_report_entry.path}"))
-
-        results[test_report_entry.path] = list()
-
-        for test_suite in element_tree.findall('testsuite'):
-            results[test_report_entry.path].append(test_suite.attrib)
-
-    return results
+    return xml
 
 
 @click.command()
@@ -70,13 +55,11 @@ def cli(path):
         click.echo(f"list of JUnit test result reports to be analyzed:")
         _echo_dir_entry_paths(test_reports_dir_entries)
 
-    results = analyze_test_reports(test_reports_dir_entries)
+    xml = get_single_xml(test_reports_dir_entries)
 
-    reports_with_errors_or_failures = filter_reports_with_errors_or_failures(results)
-
-    if reports_with_errors_or_failures:
+    if check_if_errors_or_failures(xml):
         click.echo("JUnit test result reports with errors found:")
-        _echo_dir_entry_paths(reports_with_errors_or_failures)
+        # _echo_dir_entry_paths(reports_with_errors_or_failures)
         raise SystemError("reports_with_errors_or_failures")
 
     else:
